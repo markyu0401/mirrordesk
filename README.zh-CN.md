@@ -13,6 +13,7 @@
 - **无线或 USB** — 通过局域网、Tailscale 或数据线使用 ADB。
 - **两种模式** — 手机竖屏，或在 One UI 8+ 上用虚拟显示器运行 **DeX 桌面**（任务栏、窗口、所有应用）。
 - **只有一个 Dock 图标** — 投屏引擎是一个嵌套的辅助 App（`LSUIElement`），Dock 里只显示 MirrorDesk；投屏窗口仍然是引擎创建的。
+- **手机锁屏** — 手机锁屏时 DeX 会把任务栏收成锁屏栏。MirrorDesk 会让手机保持唤醒，并可选自动解锁，让完整任务栏保持显示；在 **Mirror → Keep phone awake / Auto-unlock when phone locks** 里开关。
 - **Mac 键盘和鼠标** — 点击即点按、滚动、拖拽；窗口标题栏内的紧凑工具条（Back / Home / Recents / All apps）跟随窗口。
 - **声音** — 手机声音从 Mac 播放（Android 11+）。
 - **剪贴板** — 文本双向同步；把文件/APK 拖到窗口即可推送；⌘D 从手机取回文件。
@@ -28,7 +29,7 @@
 
 ## 安装
 
-1. 从 Releases 下载 `MirrorDesk-1.5.2.zip` 并解压。
+1. 从 Releases 下载 `MirrorDesk-1.5.3.zip` 并解压。
 2. 把 `MirrorDesk.app` 拖到 `/Applications`。
 3. **首次打开：右键 → 打开。** 应用是 ad-hoc 签名，未公证。如果 macOS 提示「已损坏」：
    ```sh

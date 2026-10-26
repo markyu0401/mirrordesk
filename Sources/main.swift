@@ -74,6 +74,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var mirrorNotifications = UserDefaults.standard.object(forKey: "mirrorNotifications") as? Bool ?? true
     var notifItem: NSMenuItem!
 
+    // Keep the phone awake so the DeX taskbar does not collapse when the phone locks.
+    var keepAwake = UserDefaults.standard.object(forKey: "keepAwake") as? Bool ?? true
+    var keepAwakeItem: NSMenuItem!
+    var autoUnlock = UserDefaults.standard.object(forKey: "autoUnlock") as? Bool ?? true
+    var autoUnlockItem: NSMenuItem!
+    var unlockTimer: Timer?
+    var lastUnlockAttempt = Date.distantPast
+
     // iPhone-style notification mirroring.
     var notifTimer: Timer?
     var seenKeys = Set<String>()
@@ -157,6 +165,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notifItem = NSMenuItem(title: "Mirror notifications", action: #selector(toggleNotifications), keyEquivalent: "")
         notifItem.target = self
         notifItem.state = mirrorNotifications ? .on : .off
+        keepAwakeItem = NSMenuItem(title: "Keep phone awake", action: #selector(toggleKeepAwake), keyEquivalent: "")
+        keepAwakeItem.target = self
+        keepAwakeItem.state = keepAwake ? .on : .off
+        keepAwakeItem.toolTip = "Sets the phone's screen timeout to never and keeps it awake while mirroring; restores on stop."
+        autoUnlockItem = NSMenuItem(title: "Auto-unlock when phone locks", action: #selector(toggleAutoUnlock), keyEquivalent: "")
+        autoUnlockItem.target = self
+        autoUnlockItem.state = autoUnlock ? .on : .off
+        autoUnlockItem.toolTip = "Wakes the phone and dismisses its lock screen when it locks, so the full DeX taskbar stays visible. Uses more battery."
 
         let inputItem = NSMenuItem()
         let inputMenu = NSMenu(title: "Input")
@@ -222,6 +238,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mirrorMenu.addItem(NSMenuItem.separator())
         mirrorMenu.addItem(authItem)
         mirrorMenu.addItem(notifItem)
+        mirrorMenu.addItem(keepAwakeItem)
+        mirrorMenu.addItem(autoUnlockItem)
         mirrorMenu.addItem(NSMenuItem.separator())
         mirrorMenu.addItem(inputItem)
         mirrorMenu.addItem(toolbarItem)
@@ -452,6 +470,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         log("mirrorNotifications = \(mirrorNotifications)")
     }
 
+    @objc func toggleKeepAwake() {
+        keepAwake.toggle()
+        UserDefaults.standard.set(keepAwake, forKey: "keepAwake")
+        keepAwakeItem.state = keepAwake ? .on : .off
+        if keepAwake {
+            applyKeepAwake()
+        } else {
+            restoreKeepAwake()
+        }
+        log("keepAwake = \(keepAwake)")
+    }
+
+    @objc func toggleAutoUnlock() {
+        autoUnlock.toggle()
+        UserDefaults.standard.set(autoUnlock, forKey: "autoUnlock")
+        autoUnlockItem.state = autoUnlock ? .on : .off
+        if autoUnlock {
+            startAutoUnlock()
+        } else {
+            unlockTimer?.invalidate()
+            unlockTimer = nil
+        }
+        log("autoUnlock = \(autoUnlock)")
+    }
+
     func startWithAuth(mode: Mode) {
         if !requireAuth || authenticated {
             authenticated = true
@@ -618,10 +661,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         child = p
         log("started \(mode.rawValue) mode, pid \(p.processIdentifier)")
         startNotificationPolling()
+        if mode == .phone {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                self?.applyKeepAwake()
+                self?.startAutoUnlock()
+            }
+        }
     }
 
     func stopChild() {
         stopNotificationPolling()
+        unlockTimer?.invalidate()
+        unlockTimer = nil
+        restoreKeepAwake()
         if let c = child {
             child = nil
             if c.isRunning { c.terminate() }
@@ -675,6 +727,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                  "com.sec.android.app.launcher/com.honeyspace.dexservice.SecondaryLauncher"]
         _ = runAdb(args)
         log("brought DeX home to front on display \(d)")
+        applyKeepAwake()
+        startAutoUnlock()
+    }
+
+    // MARK: - Keep awake / auto-unlock
+
+    func applyKeepAwake() {
+        guard keepAwake else { return }
+        let serial = activeSerial
+        guard !serial.isEmpty else { return }
+        let d = UserDefaults.standard
+        if d.string(forKey: "savedScreenTimeout") == nil {
+            let t = runAdbOutput(["-s", serial, "shell", "settings", "get", "system", "screen_off_timeout"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !t.isEmpty { d.set(t, forKey: "savedScreenTimeout") }
+            let s = runAdbOutput(["-s", serial, "shell", "settings", "get", "global", "stay_on_while_plugged_in"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !s.isEmpty { d.set(s, forKey: "savedStayOn") }
+        }
+        _ = runAdb(["-s", serial, "shell", "settings", "put", "system", "screen_off_timeout", "2147483647"])
+        _ = runAdb(["-s", serial, "shell", "svc", "power", "stayon", "true"])
+        log("keep awake applied")
+    }
+
+    func restoreKeepAwake() {
+        let serial = activeSerial
+        guard !serial.isEmpty else { return }
+        let d = UserDefaults.standard
+        if let t = d.string(forKey: "savedScreenTimeout") {
+            _ = runAdb(["-s", serial, "shell", "settings", "put", "system", "screen_off_timeout", t])
+        }
+        if let s = d.string(forKey: "savedStayOn") {
+            _ = runAdb(["-s", serial, "shell", "settings", "put", "global", "stay_on_while_plugged_in", s])
+        }
+        d.removeObject(forKey: "savedScreenTimeout")
+        d.removeObject(forKey: "savedStayOn")
+        log("keep awake restored")
+    }
+
+    func startAutoUnlock() {
+        unlockTimer?.invalidate()
+        guard autoUnlock else { return }
+        let t = Timer(timeInterval: 2, repeats: true) { [weak self] _ in
+            self?.checkAutoUnlock()
+        }
+        RunLoop.main.add(t, forMode: .common)
+        unlockTimer = t
+        t.fire()
+    }
+
+    func checkAutoUnlock() {
+        guard autoUnlock else { return }
+        let serial = activeSerial
+        guard !serial.isEmpty else { return }
+        let out = runAdbOutput(["-s", serial, "shell", "dumpsys", "window", "policy"])
+        guard out.contains("KeyguardServiceDelegate"), out.contains("showing=true") else { return }
+        guard Date().timeIntervalSince(lastUnlockAttempt) > 5 else { return }
+        lastUnlockAttempt = Date()
+        _ = runAdb(["-s", serial, "shell", "input", "keyevent", "224"])
+        _ = runAdb(["-s", serial, "shell", "wm", "dismiss-keyguard"])
+        log("auto-unlocked keyguard")
     }
 
     // MARK: - Toolbar actions
