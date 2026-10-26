@@ -81,6 +81,10 @@ To make it feel closer to native:
 - Apple Silicon only (the bundled scrcpy is arm64).
 - Requires enabling Developer options / Wireless debugging, which grants ADB full control of the phone — only pair Macs you trust.
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for the full version history, or the [Releases](https://github.com/markyu0401/mirrordesk/releases) page.
+
 ## Build from source
 
 ```sh

@@ -81,6 +81,10 @@
 - 仅支持 Apple Silicon（自带 scrcpy 是 arm64）。
 - 需要开启开发者选项 / 无线调试，这会授予 ADB 对手机的完全控制权 — 只配对信任的 Mac。
 
+## 更新日志
+
+完整版本历史见 [CHANGELOG.md](CHANGELOG.md)，或 [Releases](https://github.com/markyu0401/mirrordesk/releases) 页面。
+
 ## 从源码构建
 
 ```sh
