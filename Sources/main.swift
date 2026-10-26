@@ -51,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var logHandle: FileHandle?
     var pending = ""
     var isRetry = false
+    var retryScheduled = false
     var manualAddress: String?
     var noDevice = false
 
@@ -578,6 +579,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.noDevice = false
                     return
                 }
+                if self.retryScheduled { return }
                 NSApp.terminate(nil)
             }
         }
@@ -615,11 +617,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             log(line.trimmingCharacters(in: .whitespaces))
             if line.contains("Server connection failed"), !isRetry {
                 isRetry = true
+                retryScheduled = true
                 log("scrcpy server failed — restarting adb and retrying once")
                 _ = runAdb(["kill-server"])
                 _ = runAdb(["start-server"])
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
                     guard let self else { return }
+                    self.retryScheduled = false
                     self.start(mode: self.mode, isRetry: true)
                 }
                 return
