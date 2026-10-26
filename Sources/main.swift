@@ -82,6 +82,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var unlockTimer: Timer?
     var lastUnlockAttempt = Date.distantPast
 
+    // Keep the phone unlocked but dark, so the full DeX taskbar stays visible.
+    var dimPhone = UserDefaults.standard.object(forKey: "dimPhone") as? Bool ?? false
+    var dimPhoneItem: NSMenuItem!
+
     // iPhone-style notification mirroring.
     var notifTimer: Timer?
     var seenKeys = Set<String>()
@@ -173,6 +177,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         autoUnlockItem.target = self
         autoUnlockItem.state = autoUnlock ? .on : .off
         autoUnlockItem.toolTip = "Wakes the phone and dismisses its lock screen when it locks, so the full DeX taskbar stays visible. Uses more battery."
+        dimPhoneItem = NSMenuItem(title: "Dim phone screen", action: #selector(toggleDimPhone), keyEquivalent: "")
+        dimPhoneItem.target = self
+        dimPhoneItem.state = dimPhone ? .on : .off
+        dimPhoneItem.toolTip = "Keeps the phone awake but sets its screen brightness to 0, so the full DeX taskbar stays visible while the phone screen looks off."
 
         let inputItem = NSMenuItem()
         let inputMenu = NSMenu(title: "Input")
@@ -240,6 +248,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mirrorMenu.addItem(notifItem)
         mirrorMenu.addItem(keepAwakeItem)
         mirrorMenu.addItem(autoUnlockItem)
+        mirrorMenu.addItem(dimPhoneItem)
         mirrorMenu.addItem(NSMenuItem.separator())
         mirrorMenu.addItem(inputItem)
         mirrorMenu.addItem(toolbarItem)
@@ -495,6 +504,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         log("autoUnlock = \(autoUnlock)")
     }
 
+    @objc func toggleDimPhone() {
+        dimPhone.toggle()
+        UserDefaults.standard.set(dimPhone, forKey: "dimPhone")
+        dimPhoneItem.state = dimPhone ? .on : .off
+        if dimPhone {
+            applyDimPhone()
+        } else {
+            restoreDimPhone()
+        }
+        log("dimPhone = \(dimPhone)")
+    }
+
     func startWithAuth(mode: Mode) {
         if !requireAuth || authenticated {
             authenticated = true
@@ -674,6 +695,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         unlockTimer?.invalidate()
         unlockTimer = nil
         restoreKeepAwake()
+        restoreDimPhone()
         if let c = child {
             child = nil
             if c.isRunning { c.terminate() }
@@ -748,7 +770,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         _ = runAdb(["-s", serial, "shell", "settings", "put", "system", "screen_off_timeout", "2147483647"])
         _ = runAdb(["-s", serial, "shell", "svc", "power", "stayon", "true"])
+        if dimPhone { applyDimPhone() }
         log("keep awake applied")
+    }
+
+    func applyDimPhone() {
+        guard dimPhone else { return }
+        let serial = activeSerial
+        guard !serial.isEmpty else { return }
+        let d = UserDefaults.standard
+        if d.string(forKey: "savedBrightness") == nil {
+            let b = runAdbOutput(["-s", serial, "shell", "settings", "get", "system", "screen_brightness"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !b.isEmpty { d.set(b, forKey: "savedBrightness") }
+            let m = runAdbOutput(["-s", serial, "shell", "settings", "get", "system", "screen_brightness_mode"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !m.isEmpty { d.set(m, forKey: "savedBrightnessMode") }
+        }
+        _ = runAdb(["-s", serial, "shell", "settings", "put", "system", "screen_brightness_mode", "0"])
+        _ = runAdb(["-s", serial, "shell", "settings", "put", "system", "screen_brightness", "0"])
+        log("dim phone screen applied")
+    }
+
+    func restoreDimPhone() {
+        let serial = activeSerial
+        guard !serial.isEmpty else { return }
+        let d = UserDefaults.standard
+        if let b = d.string(forKey: "savedBrightness") {
+            _ = runAdb(["-s", serial, "shell", "settings", "put", "system", "screen_brightness", b])
+        }
+        if let m = d.string(forKey: "savedBrightnessMode") {
+            _ = runAdb(["-s", serial, "shell", "settings", "put", "system", "screen_brightness_mode", m])
+        }
+        d.removeObject(forKey: "savedBrightness")
+        d.removeObject(forKey: "savedBrightnessMode")
+        log("dim phone screen restored")
     }
 
     func restoreKeepAwake() {
