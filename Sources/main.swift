@@ -275,7 +275,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func menuPair() {
         let a = NSAlert()
         a.messageText = "Pair with your phone"
-        a.informativeText = "On the phone: 设置 → 开发者选项 → 无线调试 → 使用配对码配对设备. Type the IP:PORT and the 6-digit code shown in that dialog."
+        a.informativeText = "On the phone: Settings → Developer options → Wireless debugging → Pair device with pairing code. Type the IP:PORT and the 6-digit code shown in that dialog."
         a.addButton(withTitle: "Pair")
         a.addButton(withTitle: "Cancel")
 
@@ -297,7 +297,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let ok = runAdb(["pair", ip, code])
         let done = NSAlert()
         done.messageText = ok ? "Paired" : "Pairing failed"
-        done.informativeText = ok ? "Starting mirroring…" : "Check the pairing IP:PORT and code, and make sure 无线调试 is on."
+        done.informativeText = ok ? "Starting mirroring…" : "Check the pairing IP:PORT and code, and make sure Wireless debugging is on."
         done.runModal()
         if ok {
             manualAddress = nil
@@ -308,7 +308,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func menuConnect() {
         let a = NSAlert()
         a.messageText = "Connect to address"
-        a.informativeText = "Enter the IP:PORT shown on the phone's 无线调试 page."
+        a.informativeText = "Enter the IP:PORT shown on the phone's Wireless debugging page."
         a.addButton(withTitle: "Connect")
         a.addButton(withTitle: "Cancel")
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
@@ -606,7 +606,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if pending.contains("No device found") {
             log("no device found")
             noDevice = true
-            alert("Phone not reachable.\n\n1. On the phone, enable 无线调试.\n2. New Mac? Use Mirror → Pair phone… first (6-digit code).\n3. If discovery fails, use Mirror → Connect to address… with the IP:PORT from 无线调试.")
+            alert("Phone not reachable.\n\n1. On the phone, enable Wireless debugging.\n2. New Mac? Use Mirror → Pair phone… first (6-digit code).\n3. If discovery fails, use Mirror → Connect to address… with the IP:PORT from Wireless debugging.")
             return
         }
         while let nl = pending.firstIndex(of: "\n") {
@@ -793,15 +793,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func appName(_ pkg: String) -> String {
         let names: [String: String] = [
-            "com.tencent.mm": "微信",
-            "com.eg.android.AlipayGphone": "支付宝",
+            "com.tencent.mm": "WeChat",
+            "com.eg.android.AlipayGphone": "Alipay",
             "com.google.android.gm": "Gmail",
             "com.android.chrome": "Chrome",
             "com.google.android.apps.messaging": "Messages",
-            "com.samsung.android.messaging": "信息",
+            "com.samsung.android.messaging": "Messages",
             "com.zhiliaoapp.musically": "TikTok",
-            "com.ss.android.ugc.aweme": "抖音",
-            "com.bilibili.app.in": "哔哩哔哩",
+            "com.ss.android.ugc.aweme": "Douyin",
+            "com.bilibili.app.in": "Bilibili",
             "org.telegram.messenger": "Telegram",
             "com.discord": "Discord",
             "com.google.android.youtube": "YouTube",
@@ -812,8 +812,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             "com.whatsapp": "WhatsApp",
             "com.twitter.android": "X",
             "com.d2l.brightspace.student.android": "Brightspace",
-            "com.samsung.android.calendar": "日历",
-            "com.sec.android.app.clockpackage": "时钟",
+            "com.samsung.android.calendar": "Calendar",
+            "com.sec.android.app.clockpackage": "Clock",
             "com.microsoft.teams": "Teams",
             "com.linkedin.android": "LinkedIn"
         ]

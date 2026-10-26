@@ -131,7 +131,7 @@ elif [[ -n "$SER_ARG" ]]; then
   if try_addr "$SER_ARG"; then
     SER="$SER_ARG"
   else
-    say "✗ cannot reach $SER_ARG (check the port in 无线调试)"
+    say "✗ cannot reach $SER_ARG (check the port in Wireless debugging)"
     exit 2
   fi
 else
@@ -157,7 +157,7 @@ if [[ -z "$SER" ]]; then
   cat <<'EOF'
 No device found.
   USB:      plug the phone in with USB debugging on, then run:  mirrordesk --usb
-  Wireless: 设置 → 开发者选项 → 无线调试 shows IP:PORT.  First time on this Mac:
+  Wireless: Settings → Developer options → Wireless debugging shows IP:PORT.  First time on this Mac:
             mirrordesk --pair <IP>:<PAIRING_PORT>   (code from the phone)
             then mirrordesk <IP>:<PORT>
 EOF

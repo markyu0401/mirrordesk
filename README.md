@@ -25,7 +25,7 @@ Powered by [scrcpy](https://github.com/Genymobile/scrcpy) (Apache 2.0), bundled 
 
 ## Install
 
-1. Download `MirrorDesk-1.1.zip` from Releases and unzip it.
+1. Download `MirrorDesk-1.2.zip` from Releases and unzip it.
 2. Drag `MirrorDesk.app` to `/Applications`.
 3. **First launch: right-click → Open.** The app is ad-hoc signed and not notarized. If macOS says it is damaged:
    ```sh
@@ -81,12 +81,4 @@ Apache License 2.0. See `LICENSE` and `NOTICE`. scrcpy and adb are Apache 2.0 �
 
 MirrorDesk is an independent project. It is not affiliated with, endorsed by, or sponsored by Samsung, Google, Apple, Genymobile, or the scrcpy maintainers. Android is a trademark of Google LLC. macOS is a trademark of Apple Inc. Samsung and DeX are trademarks of Samsung Electronics.
 
-## 中文快速开始
 
-1. 下载 Releases 里的 `MirrorDesk-1.1.zip`，解压后把 `MirrorDesk.app` 拖进「应用程序」。
-2. 首次打开：右键 → 打开（应用未公证）。若提示「已损坏」：
-   ```sh
-   xattr -dr com.apple.quarantine /Applications/MirrorDesk.app
-   ```
-3. 手机打开「开发者选项 → 无线调试」，在 App 里 **Mirror → Pair phone…（⌘P）** 输入配对页的 IP:端口和 6 位码。
-4. `⌘2` 进 DeX 桌面，`⌘1` 投手机屏幕。工具条上有返回 / 主屏 / 最近任务 / 所有应用 / 模式切换。
