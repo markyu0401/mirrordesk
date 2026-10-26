@@ -25,7 +25,7 @@ Powered by [scrcpy](https://github.com/Genymobile/scrcpy) (Apache 2.0), bundled 
 
 ## Install
 
-1. Download `MirrorDesk-1.0.zip` from Releases and unzip it.
+1. Download `MirrorDesk-1.1.zip` from Releases and unzip it.
 2. Drag `MirrorDesk.app` to `/Applications`.
 3. **First launch: right-click → Open.** The app is ad-hoc signed and not notarized. If macOS says it is damaged:
    ```sh
@@ -48,6 +48,13 @@ If discovery fails, use **Mirror → Connect to address… (⌘L)** with the IP:
 - `⌘P` pair · `⌘L` connect to address · `⌘D` pull a file · `⌘.` stop
 - Inside the mirror window: `⌥H` home · `⌥B` back · `⌥S` recents · `⌥F` fullscreen · `⌥O` screen off
 - Right-click = Back, middle-click = Home.
+
+## Mouse, scrolling, and the toolbar
+
+- **Scrolling too fast?** Samsung's wheel-speed setting controls it. Use **Mirror → Input → Scroll speed** (Slowest 0 … Fastest 10), which writes the phone's `mouse_scrolling_speed`. On the phone the same slider is under **Settings → General management → Mouse and trackpad → Wheel scrolling speed**; all the way left is slowest.
+- **Enhance pointer precision** can make DeX scrolling jumpy — keep it off (**Mirror → Input → Enhance pointer precision**).
+- **Mouse captured in DeX?** The default UHID mouse is captured: press **⌥ (Option)** once to release the cursor back to the Mac, and ⌥ again to capture it. If you never want capture, enable **Mirror → Input → Absolute mouse (no capture)** (the mirror restarts).
+- **Toolbar**: it only appears while the mirror window is focused and on the current Space. Hide it completely with **Mirror → Show floating toolbar**.
 
 ## Limitations
 
@@ -76,7 +83,7 @@ MirrorDesk is an independent project. It is not affiliated with, endorsed by, or
 
 ## 中文快速开始
 
-1. 下载 Releases 里的 `MirrorDesk-1.0.zip`，解压后把 `MirrorDesk.app` 拖进「应用程序」。
+1. 下载 Releases 里的 `MirrorDesk-1.1.zip`，解压后把 `MirrorDesk.app` 拖进「应用程序」。
 2. 首次打开：右键 → 打开（应用未公证）。若提示「已损坏」：
    ```sh
    xattr -dr com.apple.quarantine /Applications/MirrorDesk.app

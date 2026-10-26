@@ -54,6 +54,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var manualAddress: String?
     var noDevice = false
 
+    // Toolbar visibility / input preferences.
+    var showToolbar = UserDefaults.standard.object(forKey: "showToolbar") as? Bool ?? true
+    var toolbarItem: NSMenuItem!
+    var absoluteMouse = UserDefaults.standard.object(forKey: "absoluteMouse") as? Bool ?? false
+    var absoluteMouseItem: NSMenuItem!
+    var enhancePointerPrecision = UserDefaults.standard.object(forKey: "enhancePointerPrecision") as? Bool ?? false
+    var accelItem: NSMenuItem!
+
     // Touch ID / password gate (Apple-style: authenticate before mirroring).
     var authenticated = false
     var requireAuth = UserDefaults.standard.object(forKey: "requireAuth") as? Bool ?? true
@@ -139,6 +147,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notifItem = NSMenuItem(title: "Mirror notifications", action: #selector(toggleNotifications), keyEquivalent: "")
         notifItem.target = self
         notifItem.state = mirrorNotifications ? .on : .off
+
+        let inputItem = NSMenuItem()
+        let inputMenu = NSMenu(title: "Input")
+        let scrollItem = NSMenuItem(title: "Scroll speed", action: nil, keyEquivalent: "")
+        let scrollMenu = NSMenu(title: "Scroll speed")
+        for (title, value) in [("Slowest (0)", 0), ("Slow (2)", 2), ("Normal (5)", 5), ("Fast (8)", 8), ("Fastest (10)", 10)] {
+            let item = NSMenuItem(title: title, action: #selector(setScrollSpeed(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = value
+            scrollMenu.addItem(item)
+        }
+        scrollItem.submenu = scrollMenu
+        inputMenu.addItem(scrollItem)
+
+        accelItem = NSMenuItem(title: "Enhance pointer precision", action: #selector(toggleAccel), keyEquivalent: "")
+        accelItem.target = self
+        accelItem.state = enhancePointerPrecision ? .on : .off
+        inputMenu.addItem(accelItem)
+
+        absoluteMouseItem = NSMenuItem(title: "Absolute mouse (no capture)", action: #selector(toggleAbsoluteMouse), keyEquivalent: "")
+        absoluteMouseItem.target = self
+        absoluteMouseItem.state = absoluteMouse ? .on : .off
+        inputMenu.addItem(absoluteMouseItem)
+
+        inputMenu.addItem(NSMenuItem.separator())
+        let mouseHelp = NSMenuItem(title: "Mouse stuck? Press ⌥ to release", action: #selector(showMouseHelp), keyEquivalent: "")
+        mouseHelp.target = self
+        inputMenu.addItem(mouseHelp)
+        inputItem.submenu = inputMenu
+
+        toolbarItem = NSMenuItem(title: "Show floating toolbar", action: #selector(toggleToolbar), keyEquivalent: "")
+        toolbarItem.target = self
+        toolbarItem.state = showToolbar ? .on : .off
+
         mirrorMenu.addItem(phone)
         mirrorMenu.addItem(dex)
         mirrorMenu.addItem(NSMenuItem.separator())
@@ -153,6 +195,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mirrorMenu.addItem(authItem)
         mirrorMenu.addItem(notifItem)
         mirrorMenu.addItem(NSMenuItem.separator())
+        mirrorMenu.addItem(inputItem)
+        mirrorMenu.addItem(toolbarItem)
+        mirrorMenu.addItem(NSMenuItem.separator())
         mirrorMenu.addItem(stop)
         mirrorItem.submenu = mirrorMenu
 
@@ -162,6 +207,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func menuPhone() { if mode != .phone { startWithAuth(mode: .phone) } }
     @objc func menuDex() { if mode != .dex { startWithAuth(mode: .dex) } }
     @objc func menuStop() { stopChild(); NSApp.terminate(nil) }
+
+    @objc func setScrollSpeed(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? Int else { return }
+        let serial = currentSerial()
+        var args: [String] = []
+        if !serial.isEmpty { args += ["-s", serial] }
+        args += ["shell", "settings", "put", "system", "mouse_scrolling_speed", "\(value)"]
+        _ = runAdb(args)
+        log("mouse_scrolling_speed=\(value)")
+    }
+
+    @objc func toggleAccel() {
+        enhancePointerPrecision.toggle()
+        UserDefaults.standard.set(enhancePointerPrecision, forKey: "enhancePointerPrecision")
+        accelItem.state = enhancePointerPrecision ? .on : .off
+        let serial = currentSerial()
+        var args: [String] = []
+        if !serial.isEmpty { args += ["-s", serial] }
+        args += ["shell", "settings", "put", "system", "mouse_pointer_acceleration", enhancePointerPrecision ? "1" : "0"]
+        _ = runAdb(args)
+        log("mouse_pointer_acceleration=\(enhancePointerPrecision ? 1 : 0)")
+    }
+
+    @objc func toggleAbsoluteMouse() {
+        absoluteMouse.toggle()
+        UserDefaults.standard.set(absoluteMouse, forKey: "absoluteMouse")
+        absoluteMouseItem.state = absoluteMouse ? .on : .off
+        log("absolute mouse: \(absoluteMouse)")
+        if child != nil { start(mode: mode) }
+    }
+
+    @objc func toggleToolbar() {
+        showToolbar.toggle()
+        UserDefaults.standard.set(showToolbar, forKey: "showToolbar")
+        toolbarItem.state = showToolbar ? .on : .off
+        if showToolbar {
+            followWindow()
+        } else {
+            panel.orderOut(nil)
+        }
+    }
+
+    @objc func showMouseHelp() {
+        let a = NSAlert()
+        a.messageText = "Mouse stuck in the DeX window?"
+        a.informativeText = "Press ⌥ (Option) once to release the mouse back to the Mac; press ⌥ again to capture it. If you prefer no capture at all, turn on Mirror → Input → Absolute mouse (no capture)."
+        a.runModal()
+    }
 
     @objc func menuAllApps() {
         guard mode == .dex else { return }
@@ -354,7 +447,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.isMovableByWindowBackground = true
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.collectionBehavior = [.fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
 
         let effect = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: w, height: h))
@@ -460,7 +553,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let addr = manualAddress { args.append(addr) }
         if mode == .dex {
             args.append("--new-display=1920x1080")
-            args.append("-M")          // UHID mouse: real cursor/hover in DeX
+            args.append(absoluteMouse ? "--mouse=sdk" : "-M")
         }
 
         let p = Process()
@@ -497,7 +590,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         child = p
         log("started \(mode.rawValue) mode, pid \(p.processIdentifier)")
-        panel.orderFrontRegardless()
         startNotificationPolling()
     }
 
@@ -750,23 +842,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func followWindow() {
         guard let pid = child?.processIdentifier, child?.isRunning == true else { return }
+        updatePanelVisibility(pid: pid)
         guard let f = windowFrame(pid: pid), !f.equalTo(lastFrame) else { return }
         lastFrame = f
-        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let mainScreen = NSScreen.screens.first ?? NSScreen.main!
+        let mainHeight = mainScreen.frame.height
+        let nsTop = mainHeight - (f.origin.y + f.height)
+        let windowRect = NSRect(x: f.origin.x, y: nsTop, width: f.width, height: f.height)
+        let screen = NSScreen.screens.first(where: { $0.frame.intersects(windowRect) }) ?? mainScreen
         let sf = screen.frame
-        let nsTop = sf.height - (f.origin.y + f.height)
         let w = panel.frame.width, h = panel.frame.height
         var x = f.midX - w / 2
-        var y = nsTop + f.height + 6
-        if y + h > sf.height - 4 { y = nsTop - h - 6 }
+        var y = nsTop + f.height - h - 10
         x = max(sf.minX + 8, min(x, sf.maxX - w - 8))
         y = max(sf.minY + 8, min(y, sf.maxY - h - 8))
         panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
-    func windowFrame(pid: pid_t) -> CGRect? {
-        guard let list = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements],
-                                                    kCGNullWindowID) as? [[String: Any]] else { return nil }
+    func updatePanelVisibility(pid: pid_t) {
+        guard showToolbar else { panel.orderOut(nil); return }
+        let onScreen = windowFrame(pid: pid, onScreenOnly: true) != nil
+        let active = NSRunningApplication(processIdentifier: pid)?.isActive ?? false
+        if onScreen && (active || NSApp.isActive) {
+            panel.orderFront(nil)
+        } else {
+            panel.orderOut(nil)
+        }
+    }
+
+    func windowFrame(pid: pid_t, onScreenOnly: Bool = false) -> CGRect? {
+        let options: CGWindowListOption = onScreenOnly
+            ? [.optionOnScreenOnly, .excludeDesktopElements]
+            : [.optionAll, .excludeDesktopElements]
+        guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return nil }
         var best: CGRect?
         var bestArea: CGFloat = 0
         for w in list {
