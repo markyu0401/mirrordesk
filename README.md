@@ -1,5 +1,7 @@
 # MirrorDesk
 
+**English** | [简体中文](README.zh-CN.md)
+
 **Your Android phone, on your Mac.** A native macOS app that mirrors and controls an Android phone over Wi-Fi or USB — including Samsung DeX desktop mode on a virtual display. No cloud account, no companion app, no terminal.
 
 Powered by [scrcpy](https://github.com/Genymobile/scrcpy) (Apache 2.0), bundled inside the app.
