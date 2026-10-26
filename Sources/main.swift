@@ -21,8 +21,8 @@ final class BarButton: NSButton {
 
     override func draw(_ dirtyRect: NSRect) {
         if hover {
-            NSColor.white.withAlphaComponent(0.14).setFill()
-            NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 3), xRadius: 11, yRadius: 11).fill()
+            NSColor.labelColor.withAlphaComponent(0.12).setFill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 3), xRadius: 7, yRadius: 7).fill()
         }
         super.draw(dirtyRect)
     }
@@ -198,7 +198,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         inputMenu.addItem(mouseHelp)
         inputItem.submenu = inputMenu
 
-        toolbarItem = NSMenuItem(title: "Show floating toolbar", action: #selector(toggleToolbar), keyEquivalent: "")
+        toolbarItem = NSMenuItem(title: "Show title-bar toolbar", action: #selector(toggleToolbar), keyEquivalent: "")
         toolbarItem.target = self
         toolbarItem.state = showToolbar ? .on : .off
 
@@ -477,51 +477,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Panel
 
     func buildPanel() {
-        let w: CGFloat = 340, h: CGFloat = 56
+        let w: CGFloat = 148, h: CGFloat = 26
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: w, height: h),
                         styleMask: [.borderless, .nonactivatingPanel],
                         backing: .buffered, defer: false)
         panel.level = .floating
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
-        panel.isMovableByWindowBackground = true
+        panel.hasShadow = false
+        panel.isMovableByWindowBackground = false
         panel.collectionBehavior = [.fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
 
-        let effect = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: w, height: h))
-        effect.material = .hudWindow
-        effect.blendingMode = .behindWindow
-        effect.state = .active
-        effect.wantsLayer = true
-        effect.layer?.cornerRadius = 18
-        effect.layer?.masksToBounds = true
-        effect.layer?.borderWidth = 1
-        effect.layer?.borderColor = NSColor.white.withAlphaComponent(0.14).cgColor
-        panel.contentView = effect
-
-        let sheen = NSView(frame: NSRect(x: 0, y: h - 26, width: w, height: 26))
-        sheen.wantsLayer = true
-        sheen.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.055).cgColor
-        effect.addSubview(sheen)
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: w, height: h))
+        content.wantsLayer = true
+        content.layer?.backgroundColor = NSColor.clear.cgColor
+        panel.contentView = content
 
         let stack = NSStackView()
         stack.orientation = .horizontal
         stack.spacing = 2
         stack.translatesAutoresizingMaskIntoConstraints = false
-        effect.addSubview(stack)
+        content.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: effect.leadingAnchor, constant: 12),
-            stack.trailingAnchor.constraint(equalTo: effect.trailingAnchor, constant: -10),
-            stack.centerYAnchor.constraint(equalTo: effect.centerYAnchor)
+            stack.centerXAnchor.constraint(equalTo: content.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: content.centerYAnchor)
         ])
-
-        statusDot = DotView(frame: NSRect(x: 0, y: 0, width: 9, height: 9))
-        statusDot.translatesAutoresizingMaskIntoConstraints = false
-        statusDot.widthAnchor.constraint(equalToConstant: 9).isActive = true
-        statusDot.heightAnchor.constraint(equalToConstant: 9).isActive = true
-        statusDot.color = .systemGreen
-        stack.addArrangedSubview(statusDot)
 
         stack.addArrangedSubview(button("chevron.backward", "Back  (⌥B / right-click)", #selector(goBack)))
         stack.addArrangedSubview(button("house", "Home  (⌥H)", #selector(goHome)))
@@ -530,14 +511,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         allAppsButton = button("square.grid.2x2", "All apps (DeX)", #selector(goAllApps))
         allAppsButton.isHidden = (mode != .dex)
         stack.addArrangedSubview(allAppsButton)
-
-        let line = NSView()
-        line.wantsLayer = true
-        line.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.18).cgColor
-        line.translatesAutoresizingMaskIntoConstraints = false
-        line.widthAnchor.constraint(equalToConstant: 1).isActive = true
-        line.heightAnchor.constraint(equalToConstant: 24).isActive = true
-        stack.addArrangedSubview(line)
 
         modeButton = button(mode == .dex ? "iphone" : "desktopcomputer", "Switch mode", #selector(toggleMode))
         stack.addArrangedSubview(modeButton)
@@ -548,23 +521,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func button(_ symbol: String, _ tip: String, _ action: Selector) -> BarButton {
         let b = BarButton()
         b.isBordered = false
-        b.image = NSImage(systemSymbolName: symbol, accessibilityDescription: tip)
+        let cfg = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
+        b.image = NSImage(systemSymbolName: symbol, accessibilityDescription: tip)?
+            .withSymbolConfiguration(cfg)
         b.imagePosition = .imageOnly
-        b.contentTintColor = .white
+        b.contentTintColor = .labelColor
         b.target = self
         b.action = action
         b.toolTip = tip
         b.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            b.widthAnchor.constraint(equalToConstant: 54),
-            b.heightAnchor.constraint(equalToConstant: 42)
+            b.widthAnchor.constraint(equalToConstant: 26),
+            b.heightAnchor.constraint(equalToConstant: 24)
         ])
         return b
     }
 
     func updateModeButton() {
+        let cfg = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
         modeButton?.image = NSImage(systemSymbolName: mode == .dex ? "iphone" : "desktopcomputer",
-                                    accessibilityDescription: "Switch mode")
+                                    accessibilityDescription: "Switch mode")?
+            .withSymbolConfiguration(cfg)
         modeButton?.toolTip = mode == .dex ? "Switch to phone screen" : "Switch to DeX desktop"
         allAppsButton?.isHidden = (mode != .dex)
     }
@@ -896,8 +873,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let screen = NSScreen.screens.first(where: { $0.frame.intersects(windowRect) }) ?? mainScreen
         let sf = screen.frame
         let w = panel.frame.width, h = panel.frame.height
-        var x = f.midX - w / 2
-        var y = nsTop + f.height - h - 10
+        var x = f.maxX - w - 10
+        var y = nsTop + f.height - h - 2
         x = max(sf.minX + 8, min(x, sf.maxX - w - 8))
         y = max(sf.minY + 8, min(y, sf.maxY - h - 8))
         panel.setFrameOrigin(NSPoint(x: x, y: y))
