@@ -60,7 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var toolbarItem: NSMenuItem!
     var absoluteMouse = UserDefaults.standard.object(forKey: "absoluteMouse") as? Bool ?? false
     var absoluteMouseItem: NSMenuItem!
-    var enhancePointerPrecision = UserDefaults.standard.object(forKey: "enhancePointerPrecision") as? Bool ?? false
+    var disableAcceleration = UserDefaults.standard.object(forKey: "disableAcceleration") as? Bool ?? true
     var accelItem: NSMenuItem!
 
     // Touch ID / password gate (Apple-style: authenticate before mirroring).
@@ -162,10 +162,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         scrollItem.submenu = scrollMenu
         inputMenu.addItem(scrollItem)
 
-        accelItem = NSMenuItem(title: "Enhance pointer precision", action: #selector(toggleAccel), keyEquivalent: "")
+        accelItem = NSMenuItem(title: "Disable pointer acceleration", action: #selector(toggleAccel), keyEquivalent: "")
         accelItem.target = self
-        accelItem.state = enhancePointerPrecision ? .on : .off
+        accelItem.state = disableAcceleration ? .on : .off
         inputMenu.addItem(accelItem)
+
+        let pointerItem = NSMenuItem(title: "Pointer speed", action: nil, keyEquivalent: "")
+        let pointerMenu = NSMenu(title: "Pointer speed")
+        for (title, value) in [("Slow (0)", 0), ("Medium (3)", 3), ("Fast (5)", 5), ("Fastest (7)", 7)] {
+            let item = NSMenuItem(title: title, action: #selector(setPointerSpeed(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = value
+            pointerMenu.addItem(item)
+        }
+        pointerItem.submenu = pointerMenu
+        inputMenu.addItem(pointerItem)
 
         absoluteMouseItem = NSMenuItem(title: "Absolute mouse (no capture)", action: #selector(toggleAbsoluteMouse), keyEquivalent: "")
         absoluteMouseItem.target = self
@@ -220,15 +231,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func toggleAccel() {
-        enhancePointerPrecision.toggle()
-        UserDefaults.standard.set(enhancePointerPrecision, forKey: "enhancePointerPrecision")
-        accelItem.state = enhancePointerPrecision ? .on : .off
+        disableAcceleration.toggle()
+        UserDefaults.standard.set(disableAcceleration, forKey: "disableAcceleration")
+        accelItem.state = disableAcceleration ? .on : .off
         let serial = currentSerial()
         var args: [String] = []
         if !serial.isEmpty { args += ["-s", serial] }
-        args += ["shell", "settings", "put", "system", "mouse_pointer_acceleration", enhancePointerPrecision ? "1" : "0"]
+        args += ["shell", "settings", "put", "system", "mouse_pointer_acceleration", disableAcceleration ? "1" : "0"]
         _ = runAdb(args)
-        log("mouse_pointer_acceleration=\(enhancePointerPrecision ? 1 : 0)")
+        log("mouse_pointer_acceleration=\(disableAcceleration ? 1 : 0) (1=off)")
+    }
+
+    @objc func setPointerSpeed(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? Int else { return }
+        let serial = currentSerial()
+        var args: [String] = []
+        if !serial.isEmpty { args += ["-s", serial] }
+        args += ["shell", "settings", "put", "system", "pointer_speed", "\(value)"]
+        _ = runAdb(args)
+        log("pointer_speed=\(value)")
     }
 
     @objc func toggleAbsoluteMouse() {

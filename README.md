@@ -27,7 +27,7 @@ Powered by [scrcpy](https://github.com/Genymobile/scrcpy) (Apache 2.0), bundled 
 
 ## Install
 
-1. Download `MirrorDesk-1.2.zip` from Releases and unzip it.
+1. Download `MirrorDesk-1.3.zip` from Releases and unzip it.
 2. Drag `MirrorDesk.app` to `/Applications`.
 3. **First launch: right-click → Open.** The app is ad-hoc signed and not notarized. If macOS says it is damaged:
    ```sh
@@ -54,7 +54,7 @@ If discovery fails, use **Mirror → Connect to address… (⌘L)** with the IP:
 ## Mouse, scrolling, and the toolbar
 
 - **Scrolling too fast?** Samsung's wheel-speed setting controls it. Use **Mirror → Input → Scroll speed** (Slowest 0 … Fastest 10), which writes the phone's `mouse_scrolling_speed`. On the phone the same slider is under **Settings → General management → Mouse and trackpad → Wheel scrolling speed**; all the way left is slowest.
-- **Enhance pointer precision** can make DeX scrolling jumpy — keep it off (**Mirror → Input → Enhance pointer precision**).
+- **Cursor jumps on fast swipes?** Android applies pointer acceleration to injected (UHID) mouse events, so fast trackpad movements can overshoot. Turn off **Mirror → Input → Disable pointer acceleration** (writes `mouse_pointer_acceleration=1`; on Samsung, 1 = off). On the phone: **Settings → Samsung DeX → Mouse and trackpad → More settings → Enhance pointer precision OFF**. Use **Mirror → Input → Pointer speed** to tune the cursor (Slow 0 … Fastest 7).
 - **Mouse captured in DeX?** The default UHID mouse is captured: press **⌥ (Option)** once to release the cursor back to the Mac, and ⌥ again to capture it. If you never want capture, enable **Mirror → Input → Absolute mouse (no capture)** (the mirror restarts).
 - **Toolbar**: it only appears while the mirror window is focused and on the current Space. Hide it completely with **Mirror → Show floating toolbar**.
 
