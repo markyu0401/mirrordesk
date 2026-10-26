@@ -84,7 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var resDir: String { Bundle.main.resourceURL?.path ?? "." }
     var scrcpyDir: String { resDir + "/scrcpy" }
     var adbPath: String { scrcpyDir + "/adb" }
-    var scrcpyPath: String { scrcpyDir + "/scrcpy" }
+    var scrcpyPath: String { resDir + "/Engine/MirrorDeskEngine.app/Contents/MacOS/mirrordesk-engine" }
     var serverPath: String { scrcpyDir + "/scrcpy-server" }
     var scriptPath: String { resDir + "/bin/mirrordesk" }
 
@@ -573,6 +573,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         env["WINDOW_TITLE"] = (mode == .dex) ? "DeX desktop" : "Phone screen"
         env["VIDEO_BUFFER"] = lowLatency ? "0" : "100"
         env["VIDEO_BIT_RATE"] = lowLatency ? "16M" : "24M"
+        env["SDL_MAC_BACKGROUND_APP"] = "1"
 
         var args: [String] = []
         if let addr = manualAddress { args.append(addr) }

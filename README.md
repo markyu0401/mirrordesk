@@ -12,6 +12,7 @@ Powered by [scrcpy](https://github.com/Genymobile/scrcpy) (Apache 2.0), bundled 
 
 - **Wireless or USB** — ADB over the local network, Tailscale, or a cable.
 - **Two modes** — the phone screen (portrait), or a **DeX desktop** on a virtual display (taskbar, windows, all apps) on One UI 8+.
+- **One Dock icon** — the mirroring engine is a nested accessory app (`LSUIElement`), so only MirrorDesk appears in the Dock; the engine's window is still the mirror window.
 - **Mac keyboard & mouse** — click to tap, scroll, drag; a compact toolbar in the window's title bar (Back / Home / Recents / All apps) follows the window.
 - **Audio** — phone audio plays through the Mac (Android 11+).
 - **Clipboard** — text syncs both ways; drag files/APKs onto the window to push them; pull files back with ⌘D.
@@ -27,7 +28,7 @@ Powered by [scrcpy](https://github.com/Genymobile/scrcpy) (Apache 2.0), bundled 
 
 ## Install
 
-1. Download `MirrorDesk-1.5.1.zip` from Releases and unzip it.
+1. Download `MirrorDesk-1.5.2.zip` from Releases and unzip it.
 2. Drag `MirrorDesk.app` to `/Applications`.
 3. **First launch: right-click → Open.** The app is ad-hoc signed and not notarized. If macOS says it is damaged:
    ```sh
