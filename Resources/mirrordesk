@@ -18,7 +18,7 @@
 # Usage:
 #   mirrordesk                            # cached address, else auto-discover
 #   mirrordesk --check                    # resolve + print device, don't launch
-#   mirrordesk 192.168.8.238:33403        # explicit address
+#   mirrordesk 192.168.1.23:37123        # explicit address
 #   mirrordesk --usb                      # USB-attached device
 #   mirrordesk --pair <IP>:<PAIR_PORT>    # one-time wireless pairing
 #   mirrordesk <serial> --turn-screen-off --no-audio   # extra scrcpy flags
