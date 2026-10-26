@@ -27,7 +27,7 @@
 
 ## 安装
 
-1. 从 Releases 下载 `MirrorDesk-1.3.zip` 并解压。
+1. 从 Releases 下载 `MirrorDesk-1.4.zip` 并解压。
 2. 把 `MirrorDesk.app` 拖到 `/Applications`。
 3. **首次打开：右键 → 打开。** 应用是 ad-hoc 签名，未公证。如果 macOS 提示「已损坏」：
    ```sh
@@ -57,6 +57,17 @@
 - **快速滑动时指针乱跳？** Android 会对注入的（UHID）鼠标事件做指针加速，快速滑动会过冲。关闭 **Mirror → Input → Disable pointer acceleration**（写入 `mouse_pointer_acceleration=1`，三星上 1 = 关闭）。手机端：**设置 → Samsung DeX → 鼠标和触控板 → 更多设置 → 增强指针精度 关闭**。用 **Mirror → Input → Pointer speed** 调光标速度（Slow 0 … Fastest 7）。
 - **DeX 里鼠标被捕获？** 默认 UHID 鼠标会被捕获：按一下 **⌥（Option）** 把光标放回 Mac，再按一下 ⌥ 重新捕获。如果不想被捕获，打开 **Mirror → Input → Absolute mouse (no capture)**（会重启投屏）。
 - **工具条**：只在投屏窗口位于当前 Space 且在前台时显示。想完全隐藏：**Mirror → Show floating toolbar** 取消勾选。
+
+## 为什么感觉像隔了一层虚拟机（延迟）
+
+指针是在 DeX 里渲染的，再通过视频传回 Mac，所以你看到的是「延迟版」的光标；UHID 模式下 Mac 光标会被捕获并隐藏。默认 `--video-buffer=100` 是用约 100ms 延迟换更少的丢帧。DeX 虚拟屏是 60Hz，Mac 屏是 120Hz。
+
+想更接近原生：
+
+- **Absolute mouse (no capture)** — Mac 光标留在本地，按 Mac 刷新率移动；点击/滚动按绝对位置注入。DeX 可能不画自己的光标。
+- **Low latency mode** — `--video-buffer=0`、16M 码率：更跟手，但可能丢更多帧。
+- **LAN 或 USB** — 这里 LAN/Tailscale 约 6-13ms；USB 没有网络跳数。
+- scrcpy 的 40ms 输入重采样补丁（issue #4697）可以消除加速度抖动，但上游还没实现。
 
 ## 限制
 

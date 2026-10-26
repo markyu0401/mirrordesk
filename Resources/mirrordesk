@@ -173,7 +173,7 @@ fi
 QUALITY=(--max-fps=120 --video-codec=h264)
 # Wireless: sharper + smoother than the old 1600p/12M/60fps defaults.
 # --video-buffer trades ~100 ms of latency for far fewer dropped frames.
-[[ "$SER" == *.*:* ]] && QUALITY+=(--max-size=1920 --video-bit-rate=24M --video-buffer=${VIDEO_BUFFER:-100})
+[[ "$SER" == *.*:* ]] && QUALITY+=(--max-size=1920 --video-bit-rate=${VIDEO_BIT_RATE:-24M} --video-buffer=${VIDEO_BUFFER:-100})
 
 export ADB PATH="/opt/homebrew/bin:$PATH"
 exec "$SCRCPY" -s "$SER" "${QUALITY[@]}" \

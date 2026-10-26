@@ -27,7 +27,7 @@ Powered by [scrcpy](https://github.com/Genymobile/scrcpy) (Apache 2.0), bundled 
 
 ## Install
 
-1. Download `MirrorDesk-1.3.zip` from Releases and unzip it.
+1. Download `MirrorDesk-1.4.zip` from Releases and unzip it.
 2. Drag `MirrorDesk.app` to `/Applications`.
 3. **First launch: right-click → Open.** The app is ad-hoc signed and not notarized. If macOS says it is damaged:
    ```sh
@@ -57,6 +57,17 @@ If discovery fails, use **Mirror → Connect to address… (⌘L)** with the IP:
 - **Cursor jumps on fast swipes?** Android applies pointer acceleration to injected (UHID) mouse events, so fast trackpad movements can overshoot. Turn off **Mirror → Input → Disable pointer acceleration** (writes `mouse_pointer_acceleration=1`; on Samsung, 1 = off). On the phone: **Settings → Samsung DeX → Mouse and trackpad → More settings → Enhance pointer precision OFF**. Use **Mirror → Input → Pointer speed** to tune the cursor (Slow 0 … Fastest 7).
 - **Mouse captured in DeX?** The default UHID mouse is captured: press **⌥ (Option)** once to release the cursor back to the Mac, and ⌥ again to capture it. If you never want capture, enable **Mirror → Input → Absolute mouse (no capture)** (the mirror restarts).
 - **Toolbar**: it only appears while the mirror window is focused and on the current Space. Hide it completely with **Mirror → Show floating toolbar**.
+
+## Why it feels remote (latency)
+
+The pointer is rendered inside DeX and sent back as video, so what you see is a delayed copy of the cursor; in UHID mode the Mac pointer is captured and hidden. The default `--video-buffer=100` deliberately trades ~100 ms of latency for fewer dropped frames. The DeX virtual display runs at 60 Hz, while the Mac display is 120 Hz.
+
+To make it feel closer to native:
+
+- **Absolute mouse (no capture)** — the Mac cursor stays local and moves at the Mac's refresh rate; clicks/scrolls are injected at the absolute position. DeX may not draw its own cursor in this mode.
+- **Low latency mode** — `--video-buffer=0`, 16M bitrate: more responsive, but may drop more frames.
+- **LAN or USB** — LAN/Tailscale are ~6-13 ms here; USB removes the network hop.
+- A 40 ms input-resampling patch (scrcpy issue #4697) could cancel acceleration jitter, but upstream has not implemented it.
 
 ## Limitations
 

@@ -62,6 +62,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var absoluteMouseItem: NSMenuItem!
     var disableAcceleration = UserDefaults.standard.object(forKey: "disableAcceleration") as? Bool ?? true
     var accelItem: NSMenuItem!
+    var lowLatency = UserDefaults.standard.object(forKey: "lowLatency") as? Bool ?? false
+    var lowLatencyItem: NSMenuItem!
 
     // Touch ID / password gate (Apple-style: authenticate before mirroring).
     var authenticated = false
@@ -178,9 +180,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pointerItem.submenu = pointerMenu
         inputMenu.addItem(pointerItem)
 
+        lowLatencyItem = NSMenuItem(title: "Low latency mode", action: #selector(toggleLowLatency), keyEquivalent: "")
+        lowLatencyItem.target = self
+        lowLatencyItem.state = lowLatency ? .on : .off
+        lowLatencyItem.toolTip = "Uses a 0 ms video buffer and 16M bitrate: more responsive, but may drop more frames."
+        inputMenu.addItem(lowLatencyItem)
+
         absoluteMouseItem = NSMenuItem(title: "Absolute mouse (no capture)", action: #selector(toggleAbsoluteMouse), keyEquivalent: "")
         absoluteMouseItem.target = self
         absoluteMouseItem.state = absoluteMouse ? .on : .off
+        absoluteMouseItem.toolTip = "Uses absolute coordinates and the local Mac cursor; no pointer capture."
         inputMenu.addItem(absoluteMouseItem)
 
         inputMenu.addItem(NSMenuItem.separator())
@@ -257,6 +266,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         UserDefaults.standard.set(absoluteMouse, forKey: "absoluteMouse")
         absoluteMouseItem.state = absoluteMouse ? .on : .off
         log("absolute mouse: \(absoluteMouse)")
+        if child != nil { start(mode: mode) }
+    }
+
+    @objc func toggleLowLatency() {
+        lowLatency.toggle()
+        UserDefaults.standard.set(lowLatency, forKey: "lowLatency")
+        lowLatencyItem.state = lowLatency ? .on : .off
+        log("low latency: \(lowLatency)")
         if child != nil { start(mode: mode) }
     }
 
@@ -570,6 +587,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         env["SCRCPY"] = scrcpyPath
         env["SCRCPY_SERVER_PATH"] = serverPath
         env["WINDOW_TITLE"] = (mode == .dex) ? "DeX desktop" : "Phone screen"
+        env["VIDEO_BUFFER"] = lowLatency ? "0" : "100"
+        env["VIDEO_BIT_RATE"] = lowLatency ? "16M" : "24M"
 
         var args: [String] = []
         if let addr = manualAddress { args.append(addr) }
