@@ -27,7 +27,7 @@
 
 ## 安装
 
-1. 从 Releases 下载 `MirrorDesk-1.5.zip` 并解压。
+1. 从 Releases 下载 `MirrorDesk-1.5.1.zip` 并解压。
 2. 把 `MirrorDesk.app` 拖到 `/Applications`。
 3. **首次打开：右键 → 打开。** 应用是 ad-hoc 签名，未公证。如果 macOS 提示「已损坏」：
    ```sh
@@ -56,7 +56,7 @@
 - **滚动太快？** 由三星的滚轮速度设置决定。用 **Mirror → Input → Scroll speed**（Slowest 0 … Fastest 10），它会写入手机的 `mouse_scrolling_speed`。手机端同一滑块在 **设置 → 常规管理 → 鼠标和触控板 → 滚轮滚动速度**，拉到最左最慢。
 - **快速滑动时指针乱跳？** Android 会对注入的（UHID）鼠标事件做指针加速，快速滑动会过冲。关闭 **Mirror → Input → Disable pointer acceleration**（写入 `mouse_pointer_acceleration=1`，三星上 1 = 关闭）。手机端：**设置 → Samsung DeX → 鼠标和触控板 → 更多设置 → 增强指针精度 关闭**。用 **Mirror → Input → Pointer speed** 调光标速度（Slow 0 … Fastest 7）。
 - **DeX 里鼠标被捕获？** 默认 UHID 鼠标会被捕获：按一下 **⌥（Option）** 把光标放回 Mac，再按一下 ⌥ 重新捕获。如果不想被捕获，打开 **Mirror → Input → Absolute mouse (no capture)**（会重启投屏）。
-- **工具条**：固定在窗口标题栏右上角（原生红黄绿按钮旁边），只在投屏窗口位于当前 Space 且在前台时显示。想隐藏：**Mirror → Show title-bar toolbar** 取消勾选。
+- **工具条**：固定在窗口标题栏右上角（原生红黄绿按钮旁边），拖动窗口时以 60 Hz 跟随，看起来就是固定在标题栏里，不会飘；只在投屏窗口位于当前 Space 且在前台时显示。想隐藏：**Mirror → Show title-bar toolbar** 取消勾选。
 
 ## 为什么感觉像隔了一层虚拟机（延迟）
 

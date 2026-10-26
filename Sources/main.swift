@@ -47,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var mode: Mode = .phone
     var displayID: Int?
     var tracking: Timer?
+    var activity: NSObjectProtocol?
     var lastFrame: CGRect = .zero
     var logHandle: FileHandle?
     var pending = ""
@@ -98,14 +99,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if CommandLine.arguments.contains("--dex") { mode = .dex }
         buildPanel()
         startWithAuth(mode: mode)
-        tracking = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { [weak self] _ in
+        let t = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             self?.followWindow()
         }
+        t.tolerance = 0.005
+        RunLoop.main.add(t, forMode: .common)
+        tracking = t
+        activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .latencyCritical],
+                                                         reason: "MirrorDesk toolbar tracking")
         log("MirrorDesk launched in \(mode.rawValue) mode")
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         stopChild()
+        if let activity { ProcessInfo.processInfo.endActivity(activity) }
         log("MirrorDesk terminated")
     }
 
@@ -863,8 +870,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func followWindow() {
         guard let pid = child?.processIdentifier, child?.isRunning == true else { return }
-        updatePanelVisibility(pid: pid)
-        guard let f = windowFrame(pid: pid), !f.equalTo(lastFrame) else { return }
+        guard let info = windowInfo(pid: pid) else { return }
+        updatePanelVisibility(pid: pid, onScreen: info.onScreen)
+        let f = info.frame
+        guard !f.equalTo(lastFrame) else { return }
         lastFrame = f
         let mainScreen = NSScreen.screens.first ?? NSScreen.main!
         let mainHeight = mainScreen.frame.height
@@ -880,23 +889,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
-    func updatePanelVisibility(pid: pid_t) {
-        guard showToolbar else { panel.orderOut(nil); return }
-        let onScreen = windowFrame(pid: pid, onScreenOnly: true) != nil
+    func updatePanelVisibility(pid: pid_t, onScreen: Bool) {
+        guard showToolbar else {
+            if panel.isVisible { panel.orderOut(nil) }
+            return
+        }
         let active = NSRunningApplication(processIdentifier: pid)?.isActive ?? false
         if onScreen && (active || NSApp.isActive) {
-            panel.orderFront(nil)
+            if !panel.isVisible { panel.orderFront(nil) }
         } else {
-            panel.orderOut(nil)
+            if panel.isVisible { panel.orderOut(nil) }
         }
     }
 
-    func windowFrame(pid: pid_t, onScreenOnly: Bool = false) -> CGRect? {
-        let options: CGWindowListOption = onScreenOnly
-            ? [.optionOnScreenOnly, .excludeDesktopElements]
-            : [.optionAll, .excludeDesktopElements]
+    func windowInfo(pid: pid_t) -> (frame: CGRect, onScreen: Bool)? {
+        let options: CGWindowListOption = [.optionAll, .excludeDesktopElements]
         guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return nil }
-        var best: CGRect?
+        var best: (CGRect, Bool)?
         var bestArea: CGFloat = 0
         for w in list {
             guard let owner = w[kCGWindowOwnerPID as String] as? Int, owner == Int(pid) else { continue }
@@ -908,7 +917,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let area = width * height
             if area > bestArea {
                 bestArea = area
-                best = CGRect(x: x, y: y, width: width, height: height)
+                let onScreen = (w[kCGWindowIsOnscreen as String] as? Bool) ?? false
+                best = (CGRect(x: x, y: y, width: width, height: height), onScreen)
             }
         }
         return best
