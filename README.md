@@ -1,104 +1,78 @@
 # MirrorDesk
 
-**English** | [简体中文](README.zh-CN.md)
+Native Android screen mirroring for macOS — **no adb, no Developer mode, no emulator layer**.
 
-**Your Android phone, on your Mac.** A native macOS app that mirrors and controls an Android phone over Wi-Fi or USB — including Samsung DeX desktop mode on a virtual display. No cloud account, no companion app, no terminal.
+MirrorDesk pairs your Android phone with a native macOS client over your local network or Tailscale. The phone runs a small companion app that captures the screen with `MediaProjection`, encodes it with `MediaCodec`, and streams H.264 over TCP. The Mac decodes with `VideoToolbox` and renders with Metal. Input is injected on the phone through an `AccessibilityService`.
 
-Powered by [scrcpy](https://github.com/Genymobile/scrcpy) (Apache 2.0), bundled inside the app.
+## Status
 
-<img src="docs/icon.png" width="128" alt="MirrorDesk icon">
+**Planning / M0.** This repository is being rebuilt from the previous scrcpy-based app. See [docs/PLAN.md](docs/PLAN.md) for the detailed plan and [docs/ROADMAP.md](docs/ROADMAP.md) for milestones.
 
-## Features
+## Why
 
-- **Wireless or USB** — ADB over the local network, Tailscale, or a cable.
-- **Two modes** — the phone screen (portrait), or a **DeX desktop** on a virtual display (taskbar, windows, all apps) on One UI 8+.
-- **One Dock icon** — the mirroring engine is a nested accessory app (`LSUIElement`), so only MirrorDesk appears in the Dock; the engine's window is still the mirror window.
-- **Phone lock** — DeX collapses the taskbar to a lock-screen bar when the phone locks. MirrorDesk keeps the phone awake and (optionally) auto-dismisses the keyguard so the full taskbar stays. Toggle under **Mirror → Keep phone awake / Auto-unlock when phone locks**.
-- **Dim phone screen** — keeps the phone unlocked but sets its screen brightness to 0, so the full DeX taskbar stays visible while the phone screen looks off. Toggle under **Mirror → Dim phone screen**.
-- **Mac keyboard & mouse** — click to tap, scroll, drag; a compact toolbar in the window's title bar (Back / Home / Recents / All apps) follows the window.
-- **Audio** — phone audio plays through the Mac (Android 11+).
-- **Clipboard** — text syncs both ways; drag files/APKs onto the window to push them; pull files back with ⌘D.
-- **Notifications** — phone notifications appear in macOS Notification Center while connected.
-- **Touch ID gate** — authenticate with Touch ID or your login password before mirroring.
-- **Self-contained** — scrcpy and adb are bundled; no Homebrew, no terminal, no account.
+The previous MirrorDesk wrapped scrcpy and adb: it required Developer options and Wireless debugging, and the SDL/FFmpeg pipeline felt like a layer. This rewrite removes adb from the user path:
 
-## Requirements
+- **No Developer mode** — the companion app uses the public `MediaProjection` and `AccessibilityService` APIs.
+- **No adb** — the transport is a direct TCP connection, paired by QR code.
+- **Native Mac client** — AppKit + VideoToolbox + Metal, no SDL window.
+- **Low latency** — hardware encode/decode, 120 fps, zero video buffer.
 
-- Apple Silicon Mac, macOS 13 or later.
-- Android 11+ phone with **Wireless debugging** enabled (Developer options).
-- Phone and Mac on the same Wi-Fi network, or both on Tailscale.
+The trade-off: this mirrors the **phone screen**, not Samsung DeX. A true DeX desktop needs a system virtual display and shell privileges; that remains the old adb path.
 
-## Install
+## Architecture
 
-1. Download `MirrorDesk-1.5.4.zip` from Releases and unzip it.
-2. Drag `MirrorDesk.app` to `/Applications`.
-3. **First launch: right-click → Open.** The app is ad-hoc signed and not notarized. If macOS says it is damaged:
-   ```sh
-   xattr -dr com.apple.quarantine /Applications/MirrorDesk.app
-   ```
-4. Allow **Local Network** and **Notifications** when macOS asks.
-
-## First connection
-
-1. On the phone: **Settings → Developer options → Wireless debugging → Pair device with pairing code**. Note the IP:PORT and the 6-digit code.
-2. In MirrorDesk: **Mirror → Pair phone… (⌘P)**, enter the pairing IP:PORT and the code.
-3. Then choose **Mirror → DeX desktop (⌘2)** or **Phone screen (⌘1)**.
-
-If discovery fails, use **Mirror → Connect to address… (⌘L)** with the IP:PORT shown on the Wireless debugging page.
-
-## Toolbar and shortcuts
-
-- Toolbar: Back, Home, Recents, All apps (DeX), mode switch.
-- `⌘1` phone screen · `⌘2` DeX desktop · `⌘3` DeX wallpaper picker · `⌘4` all apps
-- `⌘P` pair · `⌘L` connect to address · `⌘D` pull a file · `⌘.` stop
-- Inside the mirror window: `⌥H` home · `⌥B` back · `⌥S` recents · `⌥F` fullscreen · `⌥O` screen off
-- Right-click = Back, middle-click = Home.
-
-## Mouse, scrolling, and the toolbar
-
-- **Scrolling too fast?** Samsung's wheel-speed setting controls it. Use **Mirror → Input → Scroll speed** (Slowest 0 … Fastest 10), which writes the phone's `mouse_scrolling_speed`. On the phone the same slider is under **Settings → General management → Mouse and trackpad → Wheel scrolling speed**; all the way left is slowest.
-- **Cursor jumps on fast swipes?** Android applies pointer acceleration to injected (UHID) mouse events, so fast trackpad movements can overshoot. Turn off **Mirror → Input → Disable pointer acceleration** (writes `mouse_pointer_acceleration=1`; on Samsung, 1 = off). On the phone: **Settings → Samsung DeX → Mouse and trackpad → More settings → Enhance pointer precision OFF**. Use **Mirror → Input → Pointer speed** to tune the cursor (Slow 0 … Fastest 7).
-- **Mouse captured in DeX?** The default UHID mouse is captured: press **⌥ (Option)** once to release the cursor back to the Mac, and ⌥ again to capture it. If you never want capture, enable **Mirror → Input → Absolute mouse (no capture)** (the mirror restarts).
-- **Toolbar**: docked in the window's title bar (top-right, next to the native traffic lights). It tracks the window at 60 Hz while dragging, so it stays pinned to the title bar instead of drifting. It only appears while the mirror window is focused and on the current Space. Hide it with **Mirror → Show title-bar toolbar**.
-
-## Why it feels remote (latency)
-
-The pointer is rendered inside DeX and sent back as video, so what you see is a delayed copy of the cursor; in UHID mode the Mac pointer is captured and hidden. The default `--video-buffer=100` deliberately trades ~100 ms of latency for fewer dropped frames. The DeX virtual display runs at 60 Hz, while the Mac display is 120 Hz.
-
-To make it feel closer to native:
-
-- **Absolute mouse (no capture)** — the Mac cursor stays local and moves at the Mac's refresh rate; clicks/scrolls are injected at the absolute position. DeX may not draw its own cursor in this mode.
-- **Low latency mode** — `--video-buffer=0`, 16M bitrate: more responsive, but may drop more frames.
-- **LAN or USB** — LAN/Tailscale are ~6-13 ms here; USB removes the network hop.
-- A 40 ms input-resampling patch (scrcpy issue #4697) could cancel acceleration jitter, but upstream has not implemented it.
-
-## Limitations
-
-- DeX on a virtual display has **no wallpaper** — Android binds the wallpaper to the main display only.
-- DRM / `FLAG_SECURE` apps (Netflix, password managers, Secure Folder) mirror as black.
-- Notifications are polled every 3 s while connected (not push); no Live Activities, Spotlight integration, or widgets.
-- DeX on a virtual display is undocumented Samsung behavior and may break with One UI updates.
-- Apple Silicon only (the bundled scrcpy is arm64).
-- Requires enabling Developer options / Wireless debugging, which grants ADB full control of the phone — only pair Macs you trust.
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for the full version history, or the [Releases](https://github.com/markyu0401/mirrordesk/releases) page.
-
-## Build from source
-
-```sh
-./build.sh
+```
+┌─────────────────────────┐         TCP (LAN / Tailscale)        ┌──────────────────────────┐
+│ Android companion app   │ ───────────────────────────────────▶ │ macOS native client      │
+│                         │                                      │                          │
+│ MediaProjection         │  H.264 Annex-B + input messages      │ Network.framework        │
+│ MediaCodec (H.264)      │ ◀─────────────────────────────────── │ VideoToolbox + Metal     │
+│ AccessibilityService    │         input events                 │ AppKit window            │
+│ QR pairing + server     │                                      │ QR pairing               │
+└─────────────────────────┘                                      └──────────────────────────┘
 ```
 
-Requires Xcode command line tools. The script downloads the official scrcpy macOS arm64 release, verifies its published SHA-256, compiles the Swift app, generates the icon, and ad-hoc signs the bundle.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/PROTOCOL.md](docs/PROTOCOL.md).
+
+## Build
+
+### Android
+
+```bash
+cd android
+./gradlew assembleDebug
+```
+
+Requires Android SDK 35+ and JDK 17.
+
+### macOS
+
+```bash
+cd macos
+swift build
+swift test
+```
+
+Requires macOS 13+ and Xcode 15+.
+
+## Usage
+
+1. Install the companion app on the phone.
+2. Open the Mac client; it shows a QR code.
+3. On the phone, open the companion app and scan the QR.
+4. Grant screen capture and accessibility permissions.
+5. The Mac shows the phone screen; mouse and keyboard input are forwarded.
+
+## Roadmap
+
+- **M0** — repository foundation, docs, CI, templates, ADRs.
+- **M1** — Android companion app MVP: capture, encode, TCP server, QR pairing, foreground service.
+- **M2** — macOS client MVP: AppKit window, VideoToolbox decode, QR pairing, input.
+- **M3** — input and UX: accessibility gestures, keyboard, clipboard, orientation.
+- **M4** — low-latency: 120 fps, zero buffer, hardware decode, latency metrics.
+- **M5** — release: packaging, notarization, DMG, APK.
+- **M6** — Phase 2: app-on-Mac experience (native Mac clients, Android VM, or app streaming).
 
 ## License
 
-Apache License 2.0. See `LICENSE` and `NOTICE`. scrcpy and adb are Apache 2.0 — see `THIRD_PARTY_NOTICES.md`.
-
-## Disclaimer
-
-MirrorDesk is an independent project. It is not affiliated with, endorsed by, or sponsored by Samsung, Google, Apple, Genymobile, or the scrcpy maintainers. Android is a trademark of Google LLC. macOS is a trademark of Apple Inc. Samsung and DeX are trademarks of Samsung Electronics.
-
-
+MIT — see [LICENSE](LICENSE).

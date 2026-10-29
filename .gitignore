@@ -1,6 +1,9 @@
 .DS_Store
 build/
-*.zip
-*.icns
-DerivedData/
-MirrorDesk.app/
+.gradle/
+android/local.properties
+android/.gradle/
+android/app/build/
+macos/.build/
+*.xcuserstate
+xcuserdata/

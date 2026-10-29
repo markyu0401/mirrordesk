@@ -1,4 +1,5 @@
 import Cocoa
+import CoreImage
 import UserNotifications
 import LocalAuthentication
 
@@ -37,7 +38,7 @@ final class DotView: NSView {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    enum Mode: String { case phone, dex }
+    enum Mode: String { case phone, dex, desk }
 
     var panel: NSPanel!
     var modeButton: NSButton!
@@ -55,6 +56,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var retryScheduled = false
     var manualAddress: String?
     var noDevice = false
+
+    // QR pairing sheet.
+    var qrWindow: NSWindow?
+    var qrStatus: NSTextField?
+    var qrStartButton: NSButton?
+    var qrProcess: Process?
 
     // Toolbar visibility / input preferences.
     var showToolbar = UserDefaults.standard.object(forKey: "showToolbar") as? Bool ?? true
@@ -109,8 +116,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async { self.log("notification permission: \(granted)") }
         }
         if CommandLine.arguments.contains("--dex") { mode = .dex }
+        if CommandLine.arguments.contains("--desk") { mode = .desk }
         buildPanel()
         startWithAuth(mode: mode)
+        if CommandLine.arguments.contains("--pair-qr") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                self?.menuPairQR()
+            }
+        }
         let t = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             self?.followWindow()
         }
@@ -149,20 +162,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         phone.target = self
         let dex = NSMenuItem(title: "DeX desktop", action: #selector(menuDex), keyEquivalent: "2")
         dex.target = self
+        let desk = NSMenuItem(title: "Desktop shell (DexDesk)", action: #selector(menuDesk), keyEquivalent: "3")
+        desk.target = self
         let stop = NSMenuItem(title: "Stop mirroring", action: #selector(menuStop), keyEquivalent: ".")
         stop.target = self
         let allApps = NSMenuItem(title: "All apps (DeX)", action: #selector(menuAllApps), keyEquivalent: "4")
         allApps.target = self
-        let wallpaper = NSMenuItem(title: "DeX wallpaper…", action: #selector(menuWallpaper), keyEquivalent: "3")
+        let wallpaper = NSMenuItem(title: "DeX wallpaper…", action: #selector(menuWallpaper), keyEquivalent: "5")
         wallpaper.target = self
         let pair = NSMenuItem(title: "Pair phone…", action: #selector(menuPair), keyEquivalent: "p")
         pair.target = self
+        let pairQR = NSMenuItem(title: "Pair phone with QR code…", action: #selector(menuPairQR), keyEquivalent: "P")
+        pairQR.keyEquivalentModifierMask = [.command, .shift]
+        pairQR.target = self
         let connect = NSMenuItem(title: "Connect to address…", action: #selector(menuConnect), keyEquivalent: "l")
         connect.target = self
         let pull = NSMenuItem(title: "Pull file from phone…", action: #selector(menuPull), keyEquivalent: "d")
         pull.target = self
         let choose = NSMenuItem(title: "Choose device…", action: #selector(menuChooseDevice), keyEquivalent: "")
         choose.target = self
+        let installDexDesk = NSMenuItem(title: "Install DexDesk helper…", action: #selector(menuInstallDexDesk), keyEquivalent: "")
+        installDexDesk.target = self
         authItem = NSMenuItem(title: "Require Touch ID", action: #selector(toggleAuth), keyEquivalent: "")
         authItem.target = self
         authItem.state = requireAuth ? .on : .off
@@ -235,14 +255,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         mirrorMenu.addItem(phone)
         mirrorMenu.addItem(dex)
+        mirrorMenu.addItem(desk)
         mirrorMenu.addItem(NSMenuItem.separator())
         mirrorMenu.addItem(allApps)
         mirrorMenu.addItem(wallpaper)
         mirrorMenu.addItem(NSMenuItem.separator())
         mirrorMenu.addItem(pair)
+        mirrorMenu.addItem(pairQR)
         mirrorMenu.addItem(connect)
         mirrorMenu.addItem(pull)
         mirrorMenu.addItem(choose)
+        mirrorMenu.addItem(installDexDesk)
         mirrorMenu.addItem(NSMenuItem.separator())
         mirrorMenu.addItem(authItem)
         mirrorMenu.addItem(notifItem)
@@ -261,6 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func menuPhone() { if mode != .phone { startWithAuth(mode: .phone) } }
     @objc func menuDex() { if mode != .dex { startWithAuth(mode: .dex) } }
+    @objc func menuDesk() { if mode != .desk { startWithAuth(mode: .desk) } }
     @objc func menuStop() { stopChild(); NSApp.terminate(nil) }
 
     @objc func setScrollSpeed(_ sender: NSMenuItem) {
@@ -376,6 +400,151 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             manualAddress = nil
             start(mode: mode)
         }
+    }
+
+    // MARK: - QR pairing
+
+    @objc func menuPairQR() {
+        if let w = qrWindow {
+            w.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let service = "mirrordesk-" + randomToken(4)
+        let password = randomToken(6)
+        let payload = "WIFI:T:ADB;S:\(service);P:\(password);;"
+        guard let qr = qrImage(payload) else {
+            alert("Could not generate the QR code.")
+            return
+        }
+
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 620),
+                         styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        w.title = "Pair phone with QR code"
+        w.isReleasedWhenClosed = false
+        w.center()
+
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 620))
+        w.contentView = content
+
+        let title = NSTextField(labelWithString: "Pair with your phone")
+        title.font = NSFont.systemFont(ofSize: 20, weight: .semibold)
+        title.frame = NSRect(x: 30, y: 570, width: 400, height: 26)
+        content.addSubview(title)
+
+        let steps = NSTextField(wrappingLabelWithString:
+            "On the phone:\n1. Settings → Developer options → Wireless debugging\n2. Tap “Pair device with QR code”\n3. Scan this code and keep the screen open")
+        steps.font = NSFont.systemFont(ofSize: 12)
+        steps.textColor = .secondaryLabelColor
+        steps.frame = NSRect(x: 30, y: 480, width: 400, height: 76)
+        content.addSubview(steps)
+
+        let iv = NSImageView(frame: NSRect(x: 90, y: 180, width: 280, height: 280))
+        iv.image = qr
+        iv.imageScaling = .scaleProportionallyUpOrDown
+        iv.wantsLayer = true
+        iv.layer?.backgroundColor = NSColor.white.cgColor
+        content.addSubview(iv)
+
+        let status = NSTextField(labelWithString: "Waiting for the phone to scan…")
+        status.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        status.textColor = .secondaryLabelColor
+        status.frame = NSRect(x: 30, y: 140, width: 400, height: 18)
+        content.addSubview(status)
+
+        let start = NSButton(title: "Start Desktop shell", target: self, action: #selector(qrStart))
+        start.bezelStyle = .rounded
+        start.frame = NSRect(x: 250, y: 90, width: 180, height: 32)
+        start.isEnabled = false
+        content.addSubview(start)
+
+        let cancel = NSButton(title: "Cancel", target: self, action: #selector(qrCancel))
+        cancel.bezelStyle = .rounded
+        cancel.frame = NSRect(x: 160, y: 90, width: 80, height: 32)
+        content.addSubview(cancel)
+
+        qrWindow = w
+        qrStatus = status
+        qrStartButton = start
+        w.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: scriptPath)
+        p.arguments = ["--pair-qr", service, password]
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = scrcpyDir + ":/usr/bin:/bin:/usr/sbin:/sbin"
+        env["ADB"] = adbPath
+        p.environment = env
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = pipe
+        pipe.fileHandleForReading.readabilityHandler = { [weak self] h in
+            let data = h.availableData
+            guard !data.isEmpty, let s = String(data: data, encoding: .utf8) else { return }
+            DispatchQueue.main.async { self?.appendQRStatus(s) }
+        }
+        p.terminationHandler = { [weak self] proc in
+            DispatchQueue.main.async {
+                self?.qrProcess = nil
+                guard let self else { return }
+                if proc.terminationStatus == 0 {
+                    self.qrStatus?.stringValue = "Paired and connected."
+                    self.qrStartButton?.isEnabled = true
+                } else if self.qrStatus?.stringValue.hasPrefix("Paired") != true {
+                    self.qrStatus?.stringValue = "Pairing failed or timed out — check Wireless debugging."
+                }
+            }
+        }
+        do { try p.run() } catch {
+            status.stringValue = "Could not run the pairing helper."
+            return
+        }
+        qrProcess = p
+    }
+
+    @objc func qrStart() {
+        qrWindow?.close()
+        qrWindow = nil
+        startWithAuth(mode: .desk)
+    }
+
+    @objc func qrCancel() {
+        qrProcess?.terminate()
+        qrProcess = nil
+        qrWindow?.close()
+        qrWindow = nil
+    }
+
+    func appendQRStatus(_ s: String) {
+        guard let status = qrStatus else { return }
+        let line = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !line.isEmpty { status.stringValue = line }
+    }
+
+    func qrImage(_ text: String) -> NSImage? {
+        guard let data = text.data(using: .utf8),
+              let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+        filter.setValue(data, forKey: "inputMessage")
+        filter.setValue("L", forKey: "inputCorrectionLevel")
+        guard let output = filter.outputImage else { return nil }
+        let scaled = output.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
+        let rep = NSCIImageRep(ciImage: scaled)
+        let code = NSImage(size: rep.size)
+        code.addRepresentation(rep)
+        let canvas = NSImage(size: NSSize(width: 320, height: 320))
+        canvas.lockFocus()
+        NSColor.white.setFill()
+        NSRect(x: 0, y: 0, width: 320, height: 320).fill()
+        code.draw(in: NSRect(x: 20, y: 20, width: 280, height: 280))
+        canvas.unlockFocus()
+        return canvas
+    }
+
+    func randomToken(_ n: Int) -> String {
+        let chars = Array("abcdefghijklmnopqrstuvwxyz0123456789")
+        return String((0..<n).map { _ in chars.randomElement()! })
     }
 
     @objc func menuConnect() {
@@ -610,10 +779,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func updateModeButton() {
         let cfg = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
-        modeButton?.image = NSImage(systemSymbolName: mode == .dex ? "iphone" : "desktopcomputer",
+        let symbol: String
+        switch mode {
+        case .phone: symbol = "iphone"
+        case .dex: symbol = "desktopcomputer"
+        case .desk: symbol = "macwindow"
+        }
+        modeButton?.image = NSImage(systemSymbolName: symbol,
                                     accessibilityDescription: "Switch mode")?
             .withSymbolConfiguration(cfg)
-        modeButton?.toolTip = mode == .dex ? "Switch to phone screen" : "Switch to DeX desktop"
+        modeButton?.toolTip = "Switch mode"
         allAppsButton?.isHidden = (mode != .dex)
     }
 
@@ -634,7 +809,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         env["ADB"] = adbPath
         env["SCRCPY"] = scrcpyPath
         env["SCRCPY_SERVER_PATH"] = serverPath
-        env["WINDOW_TITLE"] = (mode == .dex) ? "DeX desktop" : "Phone screen"
+        switch mode {
+        case .phone: env["WINDOW_TITLE"] = "Phone screen"
+        case .dex: env["WINDOW_TITLE"] = "DeX desktop"
+        case .desk: env["WINDOW_TITLE"] = "DexDesk"
+        }
         env["VIDEO_BUFFER"] = lowLatency ? "0" : "100"
         env["VIDEO_BIT_RATE"] = lowLatency ? "16M" : "24M"
         env["SDL_MAC_BACKGROUND_APP"] = "1"
@@ -643,6 +822,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let addr = manualAddress { args.append(addr) }
         if mode == .dex {
             args.append("--new-display=1920x1080")
+            args.append(absoluteMouse ? "--mouse=sdk" : "-M")
+        } else if mode == .desk {
+            args.append("--new-display=1920x1080/240")
+            args.append("--start-app=io.github.markyu0401.dexdesk")
             args.append(absoluteMouse ? "--mouse=sdk" : "-M")
         }
 
@@ -694,6 +877,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stopNotificationPolling()
         unlockTimer?.invalidate()
         unlockTimer = nil
+        if mode == .desk {
+            // Never touch the phone's global home here: DexDesk is designed
+            // for the 1920x1080 virtual display, and making it the phone's
+            // default launcher hijacks the phone's portrait home screen.
+            restoreFreeform()
+        }
         restoreKeepAwake()
         restoreDimPhone()
         if let c = child {
@@ -727,13 +916,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
                 return
             }
-            if mode == .dex, displayID == nil, line.contains("New display"), let r = line.range(of: "(id=") {
+            if (mode == .dex || mode == .desk), displayID == nil, line.contains("New display"), let r = line.range(of: "(id=") {
                 let digits = line[r.upperBound...].prefix { $0.isNumber }
                 if let n = Int(digits) {
                     displayID = n
-                    log("DeX virtual display id \(n)")
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-                        self?.bringDeXHome()
+                    log("virtual display id \(n)")
+                    if mode == .dex {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                            self?.bringDeXHome()
+                        }
+                    } else {
+                        // Do NOT set DexDesk as the phone's global home: that
+                        // hijacks the phone's main home screen. --start-app
+                        // already launches DexDesk on the virtual display.
+                        enableFreeform()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                            self?.applyKeepAwake()
+                            self?.startAutoUnlock()
+                        }
                     }
                 }
             }
@@ -854,7 +1054,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func goAllApps() { key(284) }
 
     @objc func toggleMode() {
-        startWithAuth(mode: mode == .dex ? .phone : .dex)
+        switch mode {
+        case .phone: startWithAuth(mode: .dex)
+        case .dex: startWithAuth(mode: .desk)
+        case .desk: startWithAuth(mode: .phone)
+        }
     }
 
     func key(_ code: Int) {
@@ -862,11 +1066,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var args: [String] = []
         if !serial.isEmpty { args += ["-s", serial] }
         args += ["shell", "input"]
-        if mode == .dex, let d = displayID { args += ["-d", "\(d)"] }
+        if (mode == .dex || mode == .desk), let d = displayID { args += ["-d", "\(d)"] }
         args += ["keyevent", "\(code)"]
         if !runAdb(args) {
             var fallback = ["shell", "input"]
-            if mode == .dex, let d = displayID { fallback += ["-d", "\(d)"] }
+            if (mode == .dex || mode == .desk), let d = displayID { fallback += ["-d", "\(d)"] }
             fallback += ["keyevent", "\(code)"]
             _ = runAdb(fallback)
         }
@@ -906,6 +1110,94 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return String(line.dropFirst("serial=".count))
         }
         return ""
+    }
+
+    // MARK: - DexDesk helper
+
+    func dexDeskInstalled() -> Bool {
+        let serial = activeSerial
+        guard !serial.isEmpty else { return false }
+        let out = runAdbOutput(["-s", serial, "shell", "pm", "list", "packages",
+                                "io.github.markyu0401.dexdesk"])
+        return out.contains("package:io.github.markyu0401.dexdesk")
+    }
+
+    @objc func menuInstallDexDesk() {
+        let apk = resDir + "/dexdesk/DexDesk.apk"
+        guard FileManager.default.fileExists(atPath: apk) else {
+            alert("DexDesk.apk is missing from the app bundle.")
+            return
+        }
+        let serial = activeSerial
+        var args: [String] = []
+        if !serial.isEmpty { args += ["-s", serial] }
+        args += ["install", "-r", apk]
+        if runAdb(args) {
+            alert("DexDesk helper installed.")
+        } else {
+            alert("Could not install DexDesk. Check that the phone is connected and USB/Wireless debugging is authorized.")
+        }
+    }
+
+    func saveHome() {
+        let serial = activeSerial
+        guard !serial.isEmpty else { return }
+        if UserDefaults.standard.string(forKey: "savedHome") != nil { return }
+        let out = runAdbOutput(["-s", serial, "shell", "cmd", "package", "resolve-activity",
+                                "-a", "android.intent.action.MAIN",
+                                "-c", "android.intent.category.HOME", "--user", "0"])
+        var pkg = ""
+        var name = ""
+        for line in out.split(separator: "\n") {
+            let s = line.trimmingCharacters(in: .whitespaces)
+            if s.hasPrefix("packageName=") { pkg = String(s.dropFirst("packageName=".count)) }
+            if s.hasPrefix("name="), name.isEmpty { name = String(s.dropFirst("name=".count)) }
+        }
+        if pkg == "io.github.markyu0401.dexdesk" {
+            log("home is already DexDesk; not saving")
+            return
+        }
+        if !pkg.isEmpty, !name.isEmpty {
+            UserDefaults.standard.set(pkg + "/" + name, forKey: "savedHome")
+            log("saved home: \(pkg)/\(name)")
+        }
+    }
+
+    func setHome(_ component: String) {
+        let serial = activeSerial
+        guard !serial.isEmpty else { return }
+        _ = runAdb(["-s", serial, "shell", "cmd", "package", "set-home-activity", component])
+        log("set home: \(component)")
+    }
+
+    func restoreHome() {
+        guard mode == .desk else { return }
+        if let comp = UserDefaults.standard.string(forKey: "savedHome") {
+            setHome(comp)
+            UserDefaults.standard.removeObject(forKey: "savedHome")
+        }
+    }
+
+    func enableFreeform() {
+        let serial = activeSerial
+        guard !serial.isEmpty else { return }
+        if UserDefaults.standard.string(forKey: "savedFreeform") == nil {
+            let v = runAdbOutput(["-s", serial, "shell", "settings", "get", "global", "enable_freeform_support"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !v.isEmpty { UserDefaults.standard.set(v, forKey: "savedFreeform") }
+        }
+        _ = runAdb(["-s", serial, "shell", "settings", "put", "global", "enable_freeform_support", "1"])
+        log("freeform enabled")
+    }
+
+    func restoreFreeform() {
+        guard mode == .desk else { return }
+        let serial = activeSerial
+        guard !serial.isEmpty else { return }
+        if let v = UserDefaults.standard.string(forKey: "savedFreeform") {
+            _ = runAdb(["-s", serial, "shell", "settings", "put", "global", "enable_freeform_support", v])
+            UserDefaults.standard.removeObject(forKey: "savedFreeform")
+        }
     }
 
     // MARK: - Notification mirroring (iPhone-style)
