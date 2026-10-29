@@ -6,7 +6,7 @@ MirrorDesk pairs your Android phone with a native macOS client over your local n
 
 ## Status
 
-**Planning / M0.** This repository is being rebuilt from the previous scrcpy-based app. See [docs/PLAN.md](docs/PLAN.md) for the detailed plan and [docs/ROADMAP.md](docs/ROADMAP.md) for milestones.
+**M1 — Android companion app MVP.** M0 (foundation, docs, CI, ADRs) is done. See [docs/PLAN.md](docs/PLAN.md) for the detailed plan and [docs/ROADMAP.md](docs/ROADMAP.md) for milestones.
 
 ## Why
 
