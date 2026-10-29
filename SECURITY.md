@@ -1,22 +1,16 @@
-# Security
+# Security Policy
 
-MirrorDesk controls your phone through **ADB (Android Debug Bridge)**. Enabling Wireless debugging and pairing a computer grants that computer full device control — installing apps, reading data, sending input, taking screenshots. Only pair Macs you trust, and turn Wireless debugging off when you are done.
+## Supported Versions
 
-## What MirrorDesk does with your data
+The project is in planning/M0; no released versions yet.
 
-- **Local only.** No analytics, telemetry, accounts, ads, or cloud relay. The only network traffic is ADB to your phone (LAN or Tailscale).
-- **Notifications** are read locally with `adb shell cmd notification list/get` and posted to macOS Notification Center. Nothing is uploaded.
-- **Pairing keys** are managed by adb and stored in `~/.android/adbkey` (standard adb behavior).
-- **State** (last known phone address) is stored in `~/.local/share/mirrordesk/state`.
+## Reporting a Vulnerability
 
-## Touch ID gate
+Open a private security advisory on GitHub or contact the maintainer.
 
-Mirroring can be gated behind Touch ID or your Mac login password (`Mirror → Require Touch ID`, on by default). This does not change the fact that ADB itself has full control of the phone.
+## Scope
 
-## Signing
-
-Release builds are **ad-hoc signed**, not notarized by Apple. Build from source if you prefer to inspect and compile everything yourself.
-
-## Reporting a vulnerability
-
-Please open a private security advisory on GitHub (Security → Advisories → New draft security advisory) instead of a public issue. Include reproduction steps and the affected version.
+- Pairing token handling
+- LAN/Tailscale transport
+- Android permissions (MediaProjection, Accessibility)
+- macOS Local Network permission

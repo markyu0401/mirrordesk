@@ -79,11 +79,74 @@ bonjour_discover() {
   print -r -- "$port ${ip:-}"
 }
 
+# Generic Bonjour browse: prints "<port> <ip>"; optional name prefix filter.
+bonjour_discover_type() {
+  local type="$1" match="${2:-}" inst line port host ip
+  inst=$( ( dns-sd -B "$type" local. & p=$!; sleep 3; kill $p 2>/dev/null ) 2>/dev/null \
+            | awk -v m="$match" '/Add/ && /_adb-tls/ && (m=="" || $0 ~ m) {print $NF; exit}' ) || true
+  [[ -z "$inst" ]] && return 1
+  line=$( ( dns-sd -L "$inst" "$type" local. & p=$!; sleep 3; kill $p 2>/dev/null ) 2>/dev/null \
+            | awk '/can be reached at/ {print; exit}' ) || true
+  port=$(print -r -- "$line" | sed -n 's/.*:\([0-9][0-9]*\) .*/\1/p')
+  [[ -z "$port" ]] && return 1
+  host=$(print -r -- "$line" | sed -n 's/.* at \([^ ]*\):[0-9][0-9]* .*/\1/p')
+  ip=""
+  if [[ -n "$host" ]]; then
+    ip=$( ( dns-sd -G v4 "$host" & p=$!; sleep 2; kill $p 2>/dev/null ) 2>/dev/null \
+           | awk '/Add/ && /\.local\./ {print $(NF-1); exit}' ) || true
+  fi
+  print -r -- "$port ${ip:-}"
+}
+
+# QR pairing: the phone advertises _adb-tls-pairing._tcp after scanning the QR.
+pair_qr() {
+  local service="$1" password="$2" disc port ip addr i
+  say "Waiting for the phone to scan the QR code…"
+  ip=""
+  for i in {1..20}; do
+    disc="$(bonjour_discover_type _adb-tls-pairing._tcp "$service" || true)"
+    port="${disc%% *}"
+    ip="${disc#* }"
+    [[ "$ip" == "$disc" ]] && ip=""
+    if [[ -n "$port" && -n "$ip" ]]; then
+      say "→ pairing service at $ip:$port"
+      if "$ADB" pair "$ip:$port" "$password" 2>&1 | grep -q "Successfully paired"; then
+        say "Paired!"
+        break
+      fi
+    fi
+    sleep 2
+  done
+  [[ -z "$ip" ]] && { say "Pairing timed out."; return 1; }
+  say "→ waiting for the connect service…"
+  for i in {1..20}; do
+    disc="$(bonjour_discover_type _adb-tls-connect._tcp "" || true)"
+    port="${disc%% *}"
+    ip="${disc#* }"
+    [[ "$ip" == "$disc" ]] && ip=""
+    if [[ -n "$port" && -n "$ip" ]]; then
+      if "$ADB" connect "$ip:$port" 2>&1 | grep -q "connected"; then
+        addr="$ip:$port"
+        state_set serial "$addr"
+        state_set port "$port"
+        state_set lan "$ip"
+        say "Connected: $addr"
+        return 0
+      fi
+    fi
+    sleep 2
+  done
+  say "Paired, but no connect service was found. Use Connect to address…"
+  return 1
+}
+
 # --- args -------------------------------------------------------------------
 PAIR="" ; USB=0 ; CHECK=0 ; SER_ARG="" ; EXTRA=()
+PAIR_QR=0 ; PAIR_QR_SERVICE="" ; PAIR_QR_PASSWORD=""
 while (( $# )); do
   case "$1" in
     --pair)  PAIR="$2"; shift 2 ;;
+    --pair-qr) PAIR_QR=1; PAIR_QR_SERVICE="$2"; PAIR_QR_PASSWORD="$3"; shift 3 ;;
     --usb)   USB=1; shift ;;
     --check) CHECK=1; shift ;;
     -*)      EXTRA+=("$1"); shift ;;
@@ -95,6 +158,11 @@ if [[ -n "$PAIR" ]]; then
   printf "Enter the 6-digit code shown on the phone: "
   read CODE
   "$ADB" pair "$PAIR" "$CODE"
+  exit $?
+fi
+
+if (( PAIR_QR )); then
+  pair_qr "$PAIR_QR_SERVICE" "$PAIR_QR_PASSWORD"
   exit $?
 fi
 

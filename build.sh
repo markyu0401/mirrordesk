@@ -46,6 +46,10 @@ chmod +x "$APP/Contents/Resources/bin/mirrordesk" \
          "$APP/Contents/Resources/scrcpy/adb" \
          "$ENGINE/Contents/MacOS/mirrordesk-engine"
 
+# DexDesk helper APK, installed on the phone by Mirror → Install DexDesk helper…
+mkdir -p "$APP/Contents/Resources/dexdesk"
+cp Resources/dexdesk/DexDesk.apk "$APP/Contents/Resources/dexdesk/DexDesk.apk"
+
 swiftc -O scripts/make-icon.swift -o "$TMP/make-icon"
 "$TMP/make-icon" "$TMP/MirrorDesk.iconset"
 iconutil -c icns "$TMP/MirrorDesk.iconset" -o "$APP/Contents/Resources/MirrorDesk.icns"

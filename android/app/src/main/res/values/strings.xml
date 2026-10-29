@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">MirrorDesk</string>
+    <string name="accessibility_description">Allows MirrorDesk to inject touch and key events from your Mac.</string>
+</resources>
